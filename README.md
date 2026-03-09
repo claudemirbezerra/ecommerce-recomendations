@@ -30,6 +30,8 @@ server/
 - `DELETE /api/vectors` - Clear all vectors
 - `GET /health` - Health check
 
+**Documentação API (Swagger):** `http://localhost:3001/api-docs`
+
 ### Database Structure
 
 PostgreSQL com extensão **pgvector** (Docker: `pgvector/pgvector:pg16`).
