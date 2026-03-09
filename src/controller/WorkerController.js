@@ -3,10 +3,12 @@ import { workerEvents } from "../events/constants.js";
 export class WorkerController {
     #worker;
     #events;
+    #vectorService;
     #alreadyTrained = false;
-    constructor({ worker, events }) {
+    constructor({ worker, events, vectorService }) {
         this.#worker = worker;
         this.#events = events;
+        this.#vectorService = vectorService;
         this.#alreadyTrained = false;
         this.init();
     }
@@ -28,11 +30,9 @@ export class WorkerController {
             this.#alreadyTrained = true;
         });
 
-        this.#events.onRecommend((data) => {
-            if (!this.#alreadyTrained) return
-
-            this.triggerRecommend(data);
-
+        this.#events.onRecommend(async (data) => {
+            if (!this.#alreadyTrained) return;
+            await this.triggerRecommend(data);
         });
 
         const eventsToIgnoreLogs = [
@@ -41,7 +41,8 @@ export class WorkerController {
             workerEvents.tfVisData,
             workerEvents.tfVisLogs,
             workerEvents.trainingComplete,
-        ]
+            workerEvents.vectorsReady,
+        ];
         this.#worker.onmessage = (event) => {
             if (!eventsToIgnoreLogs.includes(event.data.type))
                 console.log(event.data);
@@ -52,6 +53,10 @@ export class WorkerController {
 
             if (event.data.type === workerEvents.trainingComplete) {
                 this.#events.dispatchTrainingComplete(event.data);
+            }
+
+            if (event.data.type === workerEvents.vectorsReady) {
+                this.#vectorService.persistVectors(event.data.productVectors, event.data.context);
             }
 
             // Handle tfvis data from the worker for initial visualization
@@ -73,7 +78,13 @@ export class WorkerController {
         this.#worker.postMessage({ action: workerEvents.trainModel, users });
     }
 
-    triggerRecommend(user) {
-        this.#worker.postMessage({ action: workerEvents.recommend, user });
+    async triggerRecommend(data) {
+        const user = data?.user ?? data;
+        const productVectors = await this.#vectorService.getVectors();
+        this.#worker.postMessage({
+            action: workerEvents.recommend,
+            user,
+            productVectors,
+        });
     }
 }

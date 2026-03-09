@@ -19,4 +19,5 @@ export const workerEvents = {
     progressUpdate: 'progress:update',
     tfVisData: 'tfvis:data',
     tfVisLogs: 'tfvis:logs',
+    vectorsReady: 'vectors:ready',
 }

@@ -333,34 +333,59 @@ async function trainModel({ users }) {
 
     postMessage({ type: workerEvents.progressUpdate, progress: { progress: 100 } });
     postMessage({ type: workerEvents.trainingComplete });
+    postMessage({
+        type: workerEvents.vectorsReady,
+        productVectors: context.productVectors,
+        context: {
+            dimensions: context.dimensions,
+            numCategories: context.numCategories,
+            numColors: context.numColors,
+            categoriesIndex: context.categoriesIndex,
+            colorsIndex: context.colorsIndex,
+            minPrice: context.minPrice,
+            maxPrice: context.maxPrice,
+            minAge: context.minAge,
+            maxAge: context.maxAge,
+        },
+    });
 }
 
 /**
  * Generates product recommendations for a user.
  * Concatenates user vector with each product vector, runs model prediction, sorts by score.
  * Sends results to main thread via postMessage.
+ * Uses productVectors from param (from DB) or from ctx (in-memory fallback).
  *
  * @param {Object} user - User to recommend for
- * @param {Object} ctx - Global context (products, productVectors, dimensions)
+ * @param {Object} ctx - Global context (products, dimensions, productVectors for fallback)
+ * @param {Array} [productVectors] - Product vectors from DB (preferred over ctx.productVectors)
  */
-function recommend(user, ctx) {
+function recommend(user, ctx, productVectors) {
+    const vectors = productVectors ?? ctx?.productVectors;
     if (_model == null || !ctx?.products?.length || ctx.dimensions == null) {
         console.warn('Recommend called before model training. Train the model first.')
         return
     }
+    if (!vectors?.length) {
+        console.warn('No product vectors available. Train the model or ensure vectors are loaded from DB.')
+        return
+    }
 
     const userVector = encodeUser(user, ctx).dataSync()
+    const dim = ctx.dimensions;
+    // Vectors from DB are padded to 256; trim to actual dimensions for model input
+    const trimVector = (v) => (v.length > dim ? v.slice(0, dim) : v);
 
     // Build input matrix: each row = [userVector, productVector]
-    const inputs = ctx.productVectors.map(({vector}) => {
-        return [...userVector, ...vector]
+    const inputs = vectors.map(({vector}) => {
+        return [...userVector, ...trimVector(vector)]
     })
 
     const inputsTensor = tf.tensor2d(inputs)
     const predictions = _model.predict(inputsTensor)
 
     const scores = predictions.dataSync()
-    const recommendations = ctx.productVectors.map((item, index) => {
+    const recommendations = vectors.map((item, index) => {
         return {
             ...item.meta,
             name: item.name,
@@ -380,7 +405,7 @@ function recommend(user, ctx) {
 /** Maps event types to handler functions */
 const handlers = {
     [workerEvents.trainModel]: trainModel,
-    [workerEvents.recommend]: d => recommend(d.user, _globalCtx),
+    [workerEvents.recommend]: d => recommend(d.user, _globalCtx, d.productVectors),
 };
 
 /** Message listener: dispatches incoming messages to the appropriate handler */

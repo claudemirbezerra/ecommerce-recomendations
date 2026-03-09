@@ -5,8 +5,13 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "browser-sync -w . --server --files 'index.html, data/*.json, js/*.js' --port 3000",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "browser-sync -w . --server --files 'index.html, data/*.json, js/*.js, src/**/*.js' --port 3000",
+    "server": "node server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migrate": "node scripts/run-migrations.js",
+    "db:init": "npm run db:up && sleep 3 && npm run migrate"
   },
   "repository": {
     "type": "git",
@@ -20,8 +25,15 @@
   ],
   "author": "claudemirbezerra",
   "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "pg": "^8.13.0",
+    "pgvector": "^0.2.0"
+  },
   "devDependencies": {
-      "browser-sync": "^3.0.4"
+    "browser-sync": "^3.0.4"
   },
   "bugs": {
     "url": "https://github.com/claudemirbezerra/ecommerce-recomendations/issues"
